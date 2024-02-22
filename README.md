@@ -1,1 +1,0 @@
-# Somia-cromossomica-R
