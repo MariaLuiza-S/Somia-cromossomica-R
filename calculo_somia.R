@@ -1,5 +1,6 @@
 # -------------------  FUNÇÃO ----------------- #
 
+#dados <- read.table("~/Desktop/leishmania/depth/SRR25744243.txt", header = FALSE, sep = "") 
 
 ## lendo arquivo 
 args <- commandArgs(trailingOnly = TRUE)
@@ -39,7 +40,8 @@ resultados$V1[resultados$V1 == c("NC_009277.2", "NC_009386.2", "NC_009387.2", "N
                                  "NC_009413.2", "NC_009414.2", "NC_009415.2", "NC_009416.2", "NC_009417.2", "NC_009418.2", "NC_009419.2", "NC_009420.2")] <- c("chr_6", "chr_1", "chr_2", "chr_3", "chr_4", "chr_5", "chr_7", "chr_8", "chr_9", "chr_10", "chr_11", "chr_12", "chr_13", "chr_14", "chr_15", 
                                                                                                                                                                "chr_16", "chr_17", "chr_18", "chr_19", "chr_20", "chr_21", "chr_22", "chr_23", "chr_24", "chr_25", "chr_26", "chr_27", "chr_28", "chr_29", "chr_30", "chr_31", "chr_32", "chr_33", 
                                                                                                                                                                "chr_34", "chr_35", "chr_36")
+#write.table(resultados, file = "~/Área de Trabalho/leishmania/depth/LIB.txt", sep = "",)
 print(resultados)
 #salvar
-#write.table(resultados, file = "~/Área de Trabalho/leishmania/depth/resultados.txt", sep = "")
+
 
