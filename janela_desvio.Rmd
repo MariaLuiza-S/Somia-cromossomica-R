@@ -1,0 +1,123 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# importando a biblioteca
+```{r}
+
+dados <- read.delim("~/Desktop/IMT/Luiza/depth/ERR984236.txt", 
+                    header = FALSE, sep = "")
+
+
+```
+
+# Lista de cromossomos
+
+```{r}
+
+library(dplyr)
+library(stringr)
+##### cálculo da janela ############
+
+
+# vetor com os códigos dos cromossomos para serem utilizados no loop
+cromossomos <- c("NC_009386.2", "NC_009387.2", "NC_009388.2", "NC_009389.2", "NC_009390.2", 
+                "NC_009277.2", "NC_009391.2", "NC_009392.2", "NC_009393.2", "NC_009394.2", 
+                "NC_009395.2", "NC_009396.2", "NC_009397.2", "NC_009398.2", "NC_009399.2", 
+                "NC_009400.2", "NC_009401.2", "NC_009402.2", "NC_009403.2", "NC_009404.2",
+                "NC_009405.2", "NC_009406.2", "NC_009407.2", "NC_009408.2", "NC_009409.2", 
+                "NC_009410.2", "NC_009411.2", "NC_009412.2", "NC_009413.2", "NC_009414.2",
+                "NC_009415.2", "NC_009416.2", "NC_009417.2", "NC_009418.2", "NC_009419.2", 
+                "NC_009420.2" )
+
+## data frame vazio que será utilizado para armazenar o resultado final
+chr_all <- NULL
+
+## incio do loop - itera sobre cada elemento do vetor cromossomo as medidas estatísticas
+for (chr in 1:length(cromossomos)){
+  
+  mediana_cromossomo <- median(dados[dados$V1 %in% cromossomos[chr],]$V3)
+  
+  ## data frame temporário para armazenamento dos cromossomos
+  chr_tmp <- (dados) %>% 
+    group_by(V1) %>%
+    filter(str_detect(V1, cromossomos[chr])) %>%
+    mutate(cromossomo = cromossomos[chr]) %>%
+    as.data.frame()
+  
+  ## data frame temporário para armazentamento das análises estatísticas (Média, mediana e desvio padrao) a cada mil pb por cromossomos
+  # calculo do numero total de grupos (número total de pares de bases / 1000) e criacao de um vetor de 1 ate o numero total de grupos para cada cromossomo
+  # cada numero do vetor sera repetido 1000 vezes e os primeiros elementos de cada vetor distribuidos a seus respectivos grupos
+  Jchr_tmp <- chr_tmp %>%
+    mutate(intervalo = rep(1:ceiling(n() / 1000), each = 1000)[1:n()]) %>%
+    group_by(intervalo, cromossomo) %>%
+    summarise(
+      media = mean(V3),
+      mediana = median(V3),
+      desvio_padrao = sd(V3),
+      desvio_meadiana_chr = median(V3)-mediana_cromossomo,
+      mediana_chr = mediana_cromossomo,
+      .groups = "drop"
+    ) %>%
+  as.data.frame()
+  
+  
+  ## armazenamento dos resultados 
+  chr_all <- rbind(chr_all, Jchr_tmp)  
+  
+}
+```
+
+```{r}
+
+library(ggplot2)
+
+
+ggplot(data=chr_all[chr_all$cromossomo %in% "NC_009386.2",], 
+       aes(x = intervalo, y = desvio_meadiana_chr, group = cromossomo))+
+  geom_line()
+
+
+```
+
+
+```{r}
+
+library(ggplot2)
+
+
+ggplot(data = chr_all,
+       #data=chr_all[chr_all$cromossomo %in% "NC_009386.2",], 
+       aes(x = intervalo, y = desvio_meadiana_chr, group = cromossomo))+
+  geom_line()
+
+
+```
+
+
+
+```{r}
+
+library(ggplot2)
+
+
+ggplot(data = chr_all,
+       #data=chr_all[chr_all$cromossomo %in% "NC_009386.2",], 
+       aes(x = intervalo, y = media, group = cromossomo))+
+  geom_line()
+
+
+
+```
+
+
+```{r}
+
+ggplot(data = chr_all,
+       #data=chr_all[chr_all$cromossomo %in% "NC_009386.2",], 
+       aes(x = intervalo, y = mediana, group = cromossomo))+
+  geom_line()
+
+
+```
