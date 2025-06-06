@@ -1,0 +1,636 @@
+---
+title: "Análises medianas"
+autores: Diego e luiza
+output: html_document
+date: "2025-01-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE}
+## carregando pacote 
+library(tidyverse)
+library(dplyr)
+library(zoo)
+library(ggplot2)
+library(readxl)
+library(dplyr)
+```
+
+
+
+#### leitura dos arquivos referente aos resultados sobre as medianas ###
+
+```{r}
+# listar todos os arquivos pasta com extensão .txt
+# necessario que o script esteja no mesmo diretorio que os arquivos a serem listados
+lista <- list.files(pattern = "txt")
+```
+
+
+```{r}
+# ler os arquivos listados e adicionar uma nova coluna com o nome do arquivo,
+# ò que coincide com o nome da amostra
+ler_e_adicionar_origem <- function(x) {
+  read.table(x, header = TRUE, sep = "", dec = ".") %>%
+    mutate(amostra = gsub("_janela2.txt", "", basename(x)))
+}
+```
+
+
+```{r}
+# reunindo as informalçoes em um dataframe
+dados <- base::lapply(lista, ler_e_adicionar_origem) %>%
+  dplyr::bind_rows() 
+#dados
+```
+
+
+```{R}
+# planilha contendo as distribuições entre grupos controle e resistencia
+# importando - tambem deve estar no mesmo diretorio
+fenotipos <- read_xlsx("id_amostras.xlsx")
+
+# alterando o nome da primeira coluna 
+colnames(fenotipos)[1] <- "amostra"
+```
+
+ 
+```{r}
+# unindo os dataframes "dados" e "fenotipos" pela coluna em comum "amostras"
+# associar os dados numericos das amostras as distribuições fenotípicas
+dados <- left_join(dados, fenotipos, by = join_by(amostra == amostra))
+
+#dados
+``` 
+
+
+````{r}
+# os dados foram agrupados por cromossomo, intervalo e grupo para calculo da
+# media dos valores de desvio da mediana
+# posteriormente calculamos a razao entre esses valores medios dos desvios entre os 
+# grupos resistente e controle
+dados_diff <- dados %>%
+  group_by(cromossomo, intervalo, grupo) %>% 
+  summarise(
+    cov = mean(desvio_meadiana_chr, na.rm = TRUE)
+  ) %>%
+  pivot_wider(
+    names_from = grupo, 
+    values_from = cov, 
+    names_prefix = "grupo_"
+  ) %>% 
+  mutate( 
+    div_cov = abs(grupo_Resistência) / abs(grupo_Controle)
+  ) %>%
+  ungroup() 
+
+#dados_diff
+```  
+
+
+```{r}
+# calculo do log2 da razao obtida no bloco anterior
+# como a divisao por zero em R resulta em INf, alguns ajustes foram necessarios
+# atribuisse o valor de 1 nas llinhas INf
+dados_diff[dados_diff$div_cov %in% "Inf",]$div_cov <- 1
+
+# como o log2 de zero é indefinido, adicionamos 0,01 nas observações do div_cov
+# para que fosse possivel realizar a operação'
+dados_diff$log2_div <- log2(dados_diff$div_cov+0.01)
+```
+
+
+```{r}
+# cálculo da média movel dos distintos 36 cromossomos sob o valor de log2 div
+roll <- NULL
+for (K in 1:36){
+  chr <- paste("chr_", K, sep="")
+
+  roll <- c(roll,
+            rollmean(dados_diff[dados_diff$cromossomo %in% chr,]$log2_div, k=7, fill = 0))
+
+}
+
+dados_diff$roll7_log2_div <- roll
+```
+
+
+
+
+########### Representações gráficas dos resultados ##################
+```{r}
+####### gráfico 1 ########
+dados1 <- dados_diff %>% 
+  filter(cromossomo %in% c("chr_1", "chr_2", "chr_3", 
+                           "chr_4", "chr_5", "chr_6", 
+                           "chr_7", "chr_8", "chr_9"))
+
+ggplot(dados1, aes(x = intervalo, y = roll7_log2_div, group = cromossomo)) +
+    geom_line(color="gray80", size = 1)+
+   geom_hline(yintercept = c(-1,1), color="red", linetype="dashed")+
+  facet_wrap(~ cromossomo, scales = "free_x", ncol = 3) +  # Facetas para cada cromossomo
+  theme_minimal() +  # Tema minimalista
+  labs(
+    title = "Razão: Resistência/Controle dos intervalo cromossômicos",
+    subtitle = "Log2 da média móvel por intervalo cromossomos (1-9) de Leishmania",
+    x = "intervalos de 1000(bp)",
+    y = "log2(roll_div)"
+  ) +
+  theme(
+    strip.text = element_text(size = 8),  # Ajusta o tamanho do texto das facetas
+    axis.text.x = element_text(angle = 30, hjust = 1),  # Rotaciona os rótulos do eixo X
+    axis.text.y = element_text(size = 5),
+    plot.title = element_text(face = "bold", hjust = 0.5),  # Centraliza título
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),  # Subtítulo elegante
+    plot.caption = element_text(size = 8, color = "gray60") # Define a altura proporcional à largura (1 = quadrado)
+  )
+```
+
+```{r}
+####### gráfico 2 ######dados2 <- dados_diff %>% 
+dados2 <- dados_diff %>% 
+  filter(cromossomo %in% c("chr_10", "chr_11", "chr_12", 
+                           "chr_13", "chr_14", "chr_15", 
+                           "chr_16", "chr_17", "chr_18"))
+
+ggplot(dados2, aes(x = intervalo, y = roll7_log2_div, group = cromossomo)) +
+    geom_line(color="gray80", size = 1)+
+   geom_hline(yintercept = c(-1,1), color="red", linetype="dashed")+
+  facet_wrap(~ cromossomo, scales = "free_x", ncol = 3) +  # Facetas para cada cromossomo
+  theme_minimal() +  # Tema minimalista
+  labs(
+    title = "Razão: Resistência/Controle dos intervalo cromossômicos",
+    subtitle = "Log2 da média móvel por intervalo cromossomos (10-18) de Leishmania",
+    x = "intervalos de 1000(bp)",
+    y = "log2(roll_div)"
+  ) +
+  theme(
+    strip.text = element_text(size = 8),  # Ajusta o tamanho do texto das facetas
+    axis.text.x = element_text(angle = 30, hjust = 1),  # Rotaciona os rótulos do eixo X
+    axis.text.y = element_text(size = 5),
+    plot.title = element_text(face = "bold", hjust = 0.5),  # Centraliza título
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),  # Subtítulo elegante
+    plot.caption = element_text(size = 8, color = "gray60") # Define a altura proporcional à largura (1 = quadrado)
+  )
+```
+
+```{r}
+####### gráfico 3 #######
+dados3 <- dados_diff %>% 
+  filter(cromossomo %in% c("chr_19", "chr_20", "chr_21", 
+                           "chr_22", "chr_23", "chr_24", 
+                           "chr_25", "chr_26", "chr_27"))
+
+ggplot(dados3, aes(x = intervalo, y = roll7_log2_div, group = cromossomo)) +
+    geom_line(color="gray80", size = 1)+
+   geom_hline(yintercept = c(-1,1), color="red", linetype="dashed")+
+  facet_wrap(~ cromossomo, scales = "free_x", ncol = 3) +  # Facetas para cada cromossomo
+  theme_minimal() +  # Tema minimalista
+  labs(
+    title = "Razão: Resistência/Controle dos intervalo cromossômicos",
+    subtitle = "Log2 da média móvel por intervalo cromossomos (19-27) de Leishmania",
+    x = "intervalos de 1000(bp)",
+    y = "log2(roll_div)"
+  ) +
+  theme(
+    strip.text = element_text(size = 8),  # Ajusta o tamanho do texto das facetas
+    axis.text.x = element_text(angle = 30, hjust = 1),  # Rotaciona os rótulos do eixo X
+    axis.text.y = element_text(size = 5),
+    plot.title = element_text(face = "bold", hjust = 0.5),  # Centraliza título
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),  # Subtítulo elegante
+    plot.caption = element_text(size = 8, color = "gray60") # Define a altura proporcional à largura (1 = quadrado)
+  )
+```
+
+```{r}
+###### gráfico 4 ########
+dados4 <- dados_diff %>% 
+  filter(cromossomo %in% c("chr_28", "chr_29", "chr_30", 
+                           "chr_31", "chr_32", "chr_33", 
+                           "chr_34", "chr_35", "chr_36"))
+
+ggplot(dados4, aes(x = intervalo, y = roll7_log2_div, group = cromossomo)) +
+    geom_line(color="gray80", size = 1)+
+   geom_hline(yintercept = c(-1,1), color="red", linetype="dashed")+
+  facet_wrap(~ cromossomo, scales = "free_x", ncol = 3) +  # Facetas para cada cromossomo
+  theme_minimal() +  # Tema minimalista
+  labs(
+    title = "Razão: Resistência/Controle dos intervalo cromossômicos",
+    subtitle = "Log2 da média móvel média móvel por intervalo cromossomos (27-36) de Leishmania",
+    x = "intervalos de 1000(bp)",
+    y = "log2(roll_div)"
+  ) +
+  theme(
+    strip.text = element_text(size = 8),  # Ajusta o tamanho do texto das facetas
+    axis.text.x = element_text(angle = 30, hjust = 1),  # Rotaciona os rótulos do eixo X
+    axis.text.y = element_text(size = 5),
+    plot.title = element_text(face = "bold", hjust = 0.5),  # Centraliza título
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray40"),  # Subtítulo elegante
+    plot.caption = element_text(size = 8, color = "gray60") # Define a altura proporcional à largura (1 = quadrado)
+  )
+```
+
+
+
+########### teste de Mann-Whitney #############
+```{r}
+# aplica teste de Mann-Whitney (p valor) em relação ao grupos
+#agrupando por cromossomo e posição
+mw_test <- dados %>%
+  group_by(cromossomo, intervalo) %>%        
+  summarise(
+    p_value = wilcox.test(desvio_meadiana_chr ~ grupo)$p.value) %>% ungroup()
+
+#mw_test
+```
+
+
+```{r}
+# cálculo do p valor ajustado
+# p valor ajustado
+mw_test$p_value_adj <-  p.adjust(mw_test$p_value, method = "BH")
+str(mw_test)
+```
+
+
+```{r}
+# estabelecendo o nível de significância do p valor
+mw_test <- mw_test %>%
+  mutate(significativo = ifelse(p_value <= 0.0001, TRUE, FALSE),
+         significativo_adj = ifelse(p_value_adj <= 0.0001, TRUE, FALSE),
+         significativo_05 = ifelse(p_value <= 0.05, TRUE, FALSE),
+         significativo_05_adj = ifelse(p_value_adj <= 0.05, TRUE, FALSE))
+```
+
+
+```{r}
+# unindo os bancos de dados da div com o p valor
+dados_final <- cbind(dados_diff, mw_test)
+
+# excluindo colunas duplicadas
+dados_final <- dados_final[,-c(8,9)]
+```
+
+
+```{r}
+# adiciona uma nova coluna "significativo final" onde as condições de p valor 
+# e log2 especificadas são testadas
+dados_final$significativo_final <- FALSE
+
+# valores são selecionado de acordo com os critérios estabelecidos
+dados_final[dados_final$p_value_adj <= 0.001 & abs(dados_final$log2_div) >= 1,]$significativo_final <- TRUE
+
+# retorna quantitativo de ocorrências true ou false
+table(dados_final$significativo_final)
+```
+
+```{r}
+# alterando a coluna dos cromossomos
+# necessário para posterior junção com o banco de dados dos genes
+dados_final$Chromosome <- recode(dados_final$cromossomo,  
+                                "chr_1" = "1", 
+                                "chr_2" = "2", 
+                                "chr_3" = "3", 
+                                "chr_4" = "4",
+                                "chr_5" = "5", 
+                                "chr_6" = "6",
+                                "chr_7" = "7", 
+                                "chr_8" = "8", 
+                                "chr_9" = "9", 
+                                "chr_10" = "10", 
+                                "chr_11" = "11", 
+                                "chr_12" = "12",
+                                "chr_13" = "13", 
+                                "chr_14" = "14", 
+                                "chr_15" = "15", 
+                                "chr_16" = "16",
+                                "chr_17" = "17", 
+                                "chr_18" = "18",
+                                "chr_19" = "19", 
+                                "chr_20" = "20", 
+                                "chr_21" = "21", 
+                                "chr_22" = "22", 
+                                "chr_23" = "23", 
+                                "chr_24" = "24",
+                                "chr_25" = "25", 
+                                "chr_26" = "26", 
+                                "chr_27" = "27", 
+                                "chr_28" = "28", 
+                                "chr_29" = "29", 
+                                "chr_30" = "30",
+                                "chr_31" = "31", 
+                                "chr_32" = "32", 
+                                "chr_33" = "33", 
+                                "chr_34" = "34", 
+                                "chr_35" = "35", 
+                                "chr_36" = "36")
+str(dados_final)
+```
+
+
+
+############# carregando as informações dos genes do ncbi #############
+```{r}
+# carregando arquivo
+genes <- read.delim("ncbi_dataset.tsv", header = TRUE, sep = "\t")
+
+genes$cromossomo <- paste("chr_",genes$Chromosomes,sep="")
+```
+
+
+```{r}
+# excluindo colunas "taxonomy" "gene type" e "anotation"
+genes <- genes[, -c(4, 5, 7)]
+
+#### alterando nome das colunas ######
+colnames(genes) <- c("Gene ID", "simbolo", "gene", "Chromosome", "startg", "endg","cromossomo" )
+
+# transformando a coluna para caracter
+genes$Chromosome <- as.character(genes$Chromosome)
+str(genes)
+```
+
+
+
+############### Unir o banco de dados "genes" com o banco "dados_final" #################
+```{r}
+# incialmente é necessário criar intervalos a serem associados com os intervalos 
+# do banco de dados genes
+criar_intervalos <- function(x) {
+  start <- seq(1, by = 1000, length.out = length(x))
+  end <- start + 999
+  paste0(start, ":", end)
+}
+
+# adicioando intervalo ao banco "dados_final"
+dados_final <- dados_final %>% group_by(Chromosome) %>%
+  mutate(regiao = criar_intervalos(intervalo)) %>% ungroup()
+
+# divide a coluna região em start e end
+dados_final <- dados_final %>% separate(regiao, into = c("start", "end"), sep = ":", convert = TRUE) %>% mutate(start = as.integer(start), end = as.integer(end))
+```
+
+
+```{r}
+# junção dos resultados as informações dos genes
+dados_combinados <- dados_final %>%
+  left_join(genes, by = "Chromosome", relationship = "many-to-many") %>%
+  filter(startg <= end & endg >= end | is.na(start))
+str(dados_combinados)
+
+# excluindo colunas repetidas
+dados_combinados <- dados_combinados[,-23]
+
+# renomeando primeira coluna
+colnames(dados_combinados)[1] <- "cromossomo"
+```
+
+
+
+######## extraindo informações de alguns resultados #######
+```{r}
+# quantidade de genes que atendem aos critérios de significância
+length(unique(dados_combinados[dados_combinados$significativo_final == TRUE,]$simbolo))
+
+# quantidade total de genes
+length(unique(dados_combinados$simbolo))
+
+```
+
+```{r}
+# quantidade de genes que atendem aos critérios de significância e log div >=1
+length(unique(dados_combinados[dados_combinados$significativo_final == TRUE & dados_combinados$log2_div >= 1,]$simbolo))
+```
+
+```{r}
+# quantidade de genes que atendem aos critérios de significância e log div <= -1
+length(unique(dados_combinados[dados_combinados$significativo_final == TRUE & dados_combinados$log2_div <= -1,]$simbolo))
+```
+
+
+
+########### analise da proporção de genes considerados significativos ###########
+```{r}
+# agrupa os dados por simbolo=nome do gene e calcula 
+# a media em que as observações desses genes são TRUE
+resultados <- dados_combinados %>%
+  group_by(simbolo) %>%
+  summarise(proporcao_true = mean(significativo_final == TRUE))
+
+length(resultados$simbolo)
+```
+
+
+
+```{r}
+# junção dos dados 
+dados_combinados<- merge(dados_combinados, resultados, by="simbolo",all.x = T)
+
+# quantidade de genes que atendem aos critérios
+length(unique(dados_combinados[dados_combinados$proporcao_true >=0.5 & abs(dados_combinados$log2_div) >= 1,]$simbolo))
+
+```
+
+
+```{r}
+# grupo resitência - genes que apresentam maior número de cópias em 
+# relação ao controle
+length(unique(dados_combinados[dados_combinados$log2_div >= 1 & dados_combinados$proporcao_true >= 0.5, ]$simbolo))
+
+```
+
+
+
+```{r}
+# grupo controle - genes que apresentam maior número de cópias em
+# relação a resistência
+length(unique(dados_combinados[dados_combinados$log2_div <= -1 & dados_combinados$proporcao_true >= 0.5, ]$simbolo))
+
+```
+
+
+
+```{r}
+# genes compartilhados entre os grupos
+#resistência
+genesRes <- table(unique(dados_combinados[dados_combinados$log2_div >= 1 & dados_combinados$proporcao_true >= 0.5, ]$simbolo))
+
+genesRes <- as.data.frame(genesRes)
+
+#alterar nome e remover coluna
+colnames(genesRes) <- c("genes", "freqR")
+str(genesRes)
+genesRes$genes <- as.character(genesRes$genes)
+
+#controle
+genesCon <- table(unique(dados_combinados[dados_combinados$log2_div <= -1 & dados_combinados$proporcao_true >= 0.5, ]$simbolo))
+
+genesCon <- as.data.frame(genesCon)
+
+#alterar nome e remover coluna
+colnames(genesCon) <- c("genes", "freqC")
+genesCon$genes <- as.character(genesCon$genes)
+str(genesCon)
+
+
+# identificar genes em comun
+genes_comuns <- inner_join(genesCon, genesRes, 
+                           by = c("genes"))
+
+# Renomear as colunas para facilitar a leitura
+colnames(genes_comuns) <- c("gene", "freq_controle", "freq_resistencia")
+
+
+# quantidade
+counts <- data.frame(
+  Categoria = c("Controle Exclusivo", "Resistência Exclusivo", "Genes Comuns"),
+  Quantidade = c(length(genesCon$genes), 
+                 length(genesRes$genes), 
+                 length(genes_comuns$gene)))
+
+
+
+# Genes exclusivos da resistência
+genes_exclusivos_resistencia <- setdiff(genesRes$genes, genes_comuns$gene)
+
+# Genes exclusivos do controle
+genes_exclusivos_controle <- setdiff(genesCon$genes, genes_comuns$gene)
+
+# Converter em data.frames para melhor manipulação
+genes_exclusivos_resistencia <- data.frame(
+  gene = genes_exclusivos_resistencia,
+  categoria = "Resistência Exclusiva"
+)
+
+
+genes_exclusivos_controle <- data.frame(
+  gene = genes_exclusivos_controle,
+  categoria = "Controle Exclusivo"
+)
+
+write.csv(unique(genes_comuns$gene), 
+          file = "g_comuns.txt", 
+          quote = F, 
+          row.names = F, 
+          col.names = F)
+```
+
+```{r}
+##### gráfico de pizza 
+library(ggplot2)
+
+counts <- data.frame(
+    Categoria = c("Controle exclusivo", "Resistência exclusivo", "Genes compartilhados"),
+    Quantidade = c(468, 1752, 421) 
+)
+
+
+# Criar rótulos para exibir proporções (em porcentagem)
+counts$Proporcao <- counts$Quantidade / sum(counts$Quantidade)
+counts$Label <- paste0(counts$Quantidade, "\n(", round(counts$Proporcao * 100, 1), "%)")
+
+ggplot(counts, aes(x = "", y = Proporcao, fill = Categoria)) +
+    geom_bar(stat = "identity", width = 1, color = "transparent") + # Remover bordas pretas
+    coord_polar("y", start = 0) + # Transformar em gráfico de pizza
+    geom_text(aes(label = Label), position = position_stack(vjust = 0.5), color = "gray30", size = 5) + # Adicionar rótulos com quantidade e proporção
+    scale_fill_manual(values = c("#33C3FF", "#7D7D7D", "#FF5733")) + # Paleta de cores
+    labs(title = "Proporções de genes por categoria", fill = "Categoria") +
+    theme_minimal(base_size = 15) + # Tema limpo e científico
+    theme(
+        legend.position = "right",           # Colocar a legenda à direita
+        legend.title = element_text(size = 12, color = "gray30"),  # Tamanho e cor da legenda
+        legend.text = element_text(size = 12, color = "gray30"),   # Tamanho e cor do texto da legenda
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold", color = "gray30"), # Título com texto menor e cor sutil
+        axis.text = element_blank(),         # Remover textos de eixos
+        axis.ticks = element_blank(),       # Remover ticks dos eixos
+        axis.title.x = element_blank(),     # Remover título do eixo x
+        axis.title.y = element_blank(),     # Remover título do eixo y
+        panel.grid = element_blank()        # Remover a grade de fundo
+    )
+
+
+```
+
+
+
+```{r}
+# quantidade de observações em que os cromossomos atendem aos critérios
+# o abs garante que tanto as observações >1 e <-1 sejam consideradas
+table(dados_combinados[dados_combinados$proporcao_true >=0.5 & abs(dados_combinados$log2_div) >= 1,]$cromossomo)
+
+# cromossomos alterados para resistência 
+table(dados_combinados[dados_combinados$proporcao_true >=0.5 & dados_combinados$log2_div >= 1,]$cromossomo)
+
+# cromossomos alterados para controle
+table(dados_combinados[dados_combinados$proporcao_true >=0.5 & dados_combinados$log2_div <= -1,]$cromossomo)
+#table(genes$cromossomo)
+```
+
+
+
+
+```{r}
+#GRÁFICO DE BARRAS COM AS INFORMAÇÕES DE ALTERAÇÕES GENETICAS POR CROMOSSOMOS
+# Filtrar os dados
+resistencia <- table(dados_combinados[dados_combinados$proporcao_true >= 0.5 & dados_combinados$log2_div >= 1,]$Chromosome)
+controle <- table(dados_combinados[dados_combinados$proporcao_true >= 0.5 & dados_combinados$log2_div <= -1,]$Chromosome)
+
+# Transformar em dataframes
+df_resistencia <- as.data.frame(resistencia)
+df_controle <- as.data.frame(controle)
+
+# Adicionar coluna de grupo
+df_resistencia$grupo <- "Resistência"
+df_controle$grupo <- "Controle"
+
+# Renomear as colunas
+colnames(df_resistencia) <- colnames(df_controle) <- c("Chromosome", "frequencia", "grupo")
+
+# Combinar os dados
+df_plot <- rbind(df_resistencia, df_controle)
+
+# Calcular as porcentagens para cada cromossomo
+df_plot <- df_plot %>%
+  group_by(Chromosome) %>%
+  mutate(proporcao = frequencia / sum(frequencia) * 100)
+
+ordem_cromossomos <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", 
+                       "11", "12", "13", "14", "15", "16", "17", "18", 
+                       "19", "20", "21", "22", "23", "24", "25", "26", 
+                       "27", "28", "29", "30", "31", "32", "33", "34", 
+                       "35", "36")
+
+# Converter a variável cromossomo em um fator com a nova ordem
+df_plot$Chromosome <- factor(df_plot$Chromosome, levels = ordem_cromossomos)
+
+# Carregar ggplot2
+library(ggplot2)
+
+
+# Criar o gráfico de barras empilhadas
+ggplot(df_plot, aes(x = as.factor(Chromosome), y = proporcao, fill = grupo)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", proporcao)), 
+            position = position_stack(vjust = 0.5), size = 2) +
+   scale_fill_manual(
+    values = c("Resistência" = "#FF5733",  # Cor para Resistência
+               "Controle" = "#33C3FF")     # Cor para Controle
+  ) + 
+  labs(
+    title = "Distribuição das alterções genéticas por cromossomos ",
+    x = "Cromossomo",
+    y = "Proporção (%)",
+    fill = "Grupo"
+  ) +
+  theme_minimal()
+``` 
+
+
+
+```{r}
+# relação de intervalos que apresentam alterações
+table(dados_combinados[dados_combinados$proporcao_true >= 0.5 & abs(dados_combinados$log2_div >= 1), ]$intervalo)
+```
